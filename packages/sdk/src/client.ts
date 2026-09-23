@@ -2,7 +2,7 @@ import {
   ApiError,
   type ApiErrorPayload,
   type OrderSummary,
-} from '@propertyhub/contracts';
+} from "@propertyhub/contracts";
 
 export interface ApiClientOptions {
   baseUrl: string;
@@ -18,16 +18,16 @@ export interface ApiClient {
 }
 
 function normalizeBaseUrl(baseUrl: string): string {
-  return baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
+  return baseUrl.endsWith("/") ? baseUrl.slice(0, -1) : baseUrl;
 }
 
 function parseErrorPayload(value: unknown, status: number): ApiError {
   const fallback: ApiErrorPayload = {
-    code: 'HTTP_ERROR',
+    code: "HTTP_ERROR",
     message: `Request failed with status ${status}`,
   };
 
-  if (!value || typeof value !== 'object') {
+  if (!value || typeof value !== "object") {
     return new ApiError(status, fallback);
   }
 
@@ -46,11 +46,11 @@ export function createApiClient(options: ApiClientOptions): ApiClient {
 
   async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
     const headers = new Headers(init.headers);
-    headers.set('Accept', 'application/json');
+    headers.set("Accept", "application/json");
 
     const accessToken = options.getAccessToken?.();
     if (accessToken) {
-      headers.set('Authorization', `Bearer ${accessToken}`);
+      headers.set("Authorization", `Bearer ${accessToken}`);
     }
 
     const response = await fetchFn(`${baseUrl}${path}`, {
@@ -78,7 +78,8 @@ export function createApiClient(options: ApiClientOptions): ApiClient {
   return {
     request,
     orders: {
-      getById: (id) => request<OrderSummary>(`/orders/${encodeURIComponent(id)}`),
+      getById: (id) =>
+        request<OrderSummary>(`/orders/${encodeURIComponent(id)}`),
     },
   };
 }

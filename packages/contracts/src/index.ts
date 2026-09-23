@@ -1,31 +1,31 @@
 export const orderSources = [
-  'B2B_PURCHASE',
-  'B2C_RETAIL',
-  'POINTS_REDEEM',
+  "B2B_PURCHASE",
+  "B2C_RETAIL",
+  "POINTS_REDEEM",
 ] as const;
 
 export type OrderSource = (typeof orderSources)[number];
 
 export const orderStatuses = [
-  'PENDING_APPROVAL',
-  'PENDING_PAYMENT',
-  'PAID',
-  'PROCESSING',
-  'SHIPPED',
-  'COMPLETED',
-  'CANCELLED',
-  'REFUNDING',
-  'REFUNDED',
+  "PENDING_APPROVAL",
+  "PENDING_PAYMENT",
+  "PAID",
+  "PROCESSING",
+  "SHIPPED",
+  "COMPLETED",
+  "CANCELLED",
+  "REFUNDING",
+  "REFUNDED",
 ] as const;
 
 export type OrderStatus = (typeof orderStatuses)[number];
 
 export const paymentStatuses = [
-  'PENDING',
-  'SUCCEEDED',
-  'FAILED',
-  'EXPIRED',
-  'REFUNDED',
+  "PENDING",
+  "SUCCEEDED",
+  "FAILED",
+  "EXPIRED",
+  "REFUNDED",
 ] as const;
 
 export type PaymentStatus = (typeof paymentStatuses)[number];
@@ -54,7 +54,7 @@ export class ApiError extends Error {
 
   constructor(status: number, payload: ApiErrorPayload) {
     super(payload.message);
-    this.name = 'ApiError';
+    this.name = "ApiError";
     this.status = status;
     this.code = payload.code;
     this.details = payload.details;
