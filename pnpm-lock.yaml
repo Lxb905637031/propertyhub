@@ -20,6 +20,16 @@ importers:
 
   packages/config: {}
 
+  packages/contracts: {}
+
+  packages/sdk:
+    dependencies:
+      '@propertyhub/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+
+  packages/ui: {}
+
 packages:
 
   '@turbo/darwin-64@2.11.2':
