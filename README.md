@@ -79,6 +79,19 @@ docker compose config
   -> 售后/退款 -> 报表、对账和审计
 ```
 
+当前已可运行的普通购买切片为：商品列表、库存预校验、创建订单、模拟支付、回调验签与幂等、模拟发货和确认收货。目录和订单数据暂存于 API 进程内，重启后恢复种子数据；下一步会接入 Prisma 事务持久化。
+
+主要 API：
+
+```text
+GET  /api/products
+POST /api/orders
+POST /api/orders/:id/pay
+POST /api/orders/payments/mock/callback
+POST /api/orders/:id/ship
+POST /api/orders/:id/complete
+```
+
 每个领域的详细价值、角色、状态机和面试演示方式见 [docs/product.md](docs/product.md)，技术边界见 [docs/architecture.md](docs/architecture.md)。
 
 ## 免费 Demo 发布建议

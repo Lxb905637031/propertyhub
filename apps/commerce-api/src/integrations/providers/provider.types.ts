@@ -2,6 +2,7 @@ export interface CreatePaymentInput {
   orderId: string;
   amount: number;
   idempotencyKey: string;
+  scenario?: "success" | "fail" | "timeout";
 }
 
 export interface CreatePaymentResult {

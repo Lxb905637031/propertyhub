@@ -174,3 +174,18 @@ lint -> typecheck -> test -> build -> migration -> deploy
 5. `chore: scaffold commerce api and mock providers`
 6. `chore: add local infrastructure and project readme`
 7. 后续每个业务闭环单独提交，并在 commit body 记录验证命令。
+
+## 12. 第一条可运行业务切片
+
+当前已接通一条 B2C 演示链路：
+
+```text
+GET /api/products
+  -> POST /api/orders
+  -> POST /api/orders/:id/pay
+  -> POST /api/orders/payments/mock/callback
+  -> POST /api/orders/:id/ship
+  -> POST /api/orders/:id/complete
+```
+
+目录、库存和订单暂时使用进程内 Repository，目的是先把 DTO 校验、库存锁定、状态机、Provider 调用、幂等回调和错误响应串起来。API 重启后数据会重新加载种子目录；下一阶段会把这些 Repository 替换为 Prisma + PostgreSQL 事务，并保留相同的 Controller 契约。

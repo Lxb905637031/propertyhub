@@ -8,9 +8,10 @@
     "start": "node dist/main.js",
     "lint": "prettier --check 'src/**/*.{ts,tsx}'",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "node --test"
+    "test": "tsc -p tsconfig.build.json && node --test test/*.test.js"
   },
   "dependencies": {
+    "@propertyhub/contracts": "workspace:*",
     "@nestjs/common": "^11.0.11",
     "@nestjs/config": "^4.0.2",
     "@nestjs/core": "^11.0.11",

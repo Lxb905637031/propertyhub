@@ -1,7 +1,12 @@
 import {
   ApiError,
   type ApiErrorPayload,
-  type OrderSummary,
+  type CreateOrderRequest,
+  type OrderDetails,
+  type PaymentCallbackRequest,
+  type PayOrderRequest,
+  type ProductSummary,
+  type ShipOrderRequest,
 } from "@propertyhub/contracts";
 
 export interface ApiClientOptions {
@@ -12,8 +17,16 @@ export interface ApiClientOptions {
 
 export interface ApiClient {
   request<T>(path: string, init?: RequestInit): Promise<T>;
+  catalog: {
+    list(): Promise<ProductSummary[]>;
+  };
   orders: {
-    getById(id: string): Promise<OrderSummary>;
+    getById(id: string): Promise<OrderDetails>;
+    create(input: CreateOrderRequest): Promise<OrderDetails>;
+    pay(id: string, input?: PayOrderRequest): Promise<OrderDetails>;
+    paymentCallback(input: PaymentCallbackRequest): Promise<OrderDetails>;
+    ship(id: string, input: ShipOrderRequest): Promise<OrderDetails>;
+    complete(id: string): Promise<OrderDetails>;
   };
 }
 
@@ -77,9 +90,40 @@ export function createApiClient(options: ApiClientOptions): ApiClient {
 
   return {
     request,
+    catalog: {
+      list: () => request<ProductSummary[]>("/products"),
+    },
     orders: {
       getById: (id) =>
-        request<OrderSummary>(`/orders/${encodeURIComponent(id)}`),
+        request<OrderDetails>(`/orders/${encodeURIComponent(id)}`),
+      create: (input) =>
+        request<OrderDetails>("/orders", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(input),
+        }),
+      pay: (id, input = {}) =>
+        request<OrderDetails>(`/orders/${encodeURIComponent(id)}/pay`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(input),
+        }),
+      paymentCallback: (input) =>
+        request<OrderDetails>("/orders/payments/mock/callback", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(input),
+        }),
+      ship: (id, input) =>
+        request<OrderDetails>(`/orders/${encodeURIComponent(id)}/ship`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(input),
+        }),
+      complete: (id) =>
+        request<OrderDetails>(`/orders/${encodeURIComponent(id)}/complete`, {
+          method: "POST",
+        }),
     },
   };
 }

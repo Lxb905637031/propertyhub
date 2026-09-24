@@ -39,6 +39,49 @@ export interface OrderSummary {
   createdAt: string;
 }
 
+export interface ProductSummary {
+  id: string;
+  skuId: string;
+  name: string;
+  category: string;
+  price: number;
+  pointsPrice?: number;
+  availableStock: number;
+}
+
+export interface OrderItemSummary {
+  skuId: string;
+  productName: string;
+  quantity: number;
+  unitPrice: number;
+  subtotal: number;
+}
+
+export interface OrderDetails extends OrderSummary {
+  items: OrderItemSummary[];
+  paymentId?: string;
+  trackingNo?: string;
+}
+
+export interface CreateOrderRequest {
+  source: OrderSource;
+  items: Array<{ skuId: string; quantity: number }>;
+}
+
+export interface PayOrderRequest {
+  scenario?: "success" | "fail" | "timeout";
+}
+
+export interface PaymentCallbackRequest {
+  paymentId: string;
+  signature: string;
+}
+
+export interface ShipOrderRequest {
+  recipient: string;
+  address: string;
+}
+
 export interface ApiErrorPayload {
   code: string;
   message: string;

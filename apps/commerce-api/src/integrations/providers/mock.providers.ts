@@ -1,4 +1,4 @@
-import { Injectable } from "@nestjs/common";
+import { GatewayTimeoutException, Injectable } from "@nestjs/common";
 import { createHash } from "node:crypto";
 import type {
   CreatePaymentInput,
@@ -25,28 +25,37 @@ function stableId(prefix: string, value: string): string {
 
 /**
  * Mock Provider 保留真实支付所需的接口形状，方便未来替换实现。
- * 测试参数中带有 `fail` 或 `timeout` 时，会稳定地产生失败/超时分支。
+ * 演示场景显式传入，不从业务 ID 猜测成功或失败。签名只是 Demo 标记，不能用于真实支付。
  */
 @Injectable()
 export class MockPaymentProvider implements PaymentProvider {
+  private readonly results = new Map<string, CreatePaymentResult>();
+
   async createPayment(input: CreatePaymentInput): Promise<CreatePaymentResult> {
-    if (input.idempotencyKey.includes("timeout")) {
-      await new Promise((resolve) => setTimeout(resolve, 50));
+    if (input.scenario === "timeout") {
+      throw new GatewayTimeoutException("模拟支付超时，可以重试或取消订单");
     }
 
-    return {
+    const previous = this.results.get(input.idempotencyKey);
+    if (previous) return { ...previous };
+    const result: CreatePaymentResult = {
       paymentId: stableId("pay", input.idempotencyKey),
-      status: input.idempotencyKey.includes("fail") ? "FAILED" : "PENDING",
+      status: input.scenario === "fail" ? "FAILED" : "PENDING",
       provider: "mock-payment",
     };
+    this.results.set(input.idempotencyKey, result);
+    return { ...result };
   }
 
   async verifyCallback(
     input: VerifyPaymentCallbackInput,
   ): Promise<VerifyPaymentCallbackResult> {
+    const payment = [...this.results.values()].find(
+      (candidate) => candidate.paymentId === input.paymentId,
+    );
     return {
-      accepted: input.signature === "mock-signature",
-      status: input.paymentId.includes("fail") ? "FAILED" : "SUCCEEDED",
+      accepted: Boolean(payment) && input.signature === "mock-signature",
+      status: payment?.status === "FAILED" ? "FAILED" : "SUCCEEDED",
       paymentId: input.paymentId,
     };
   }
