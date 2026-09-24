@@ -18,6 +18,7 @@ export function validateEnvironment(config: Record<string, unknown>) {
       "postgresql://propertyhub:propertyhub@localhost:5432/propertyhub",
     REDIS_URL: config.REDIS_URL ?? "redis://localhost:6379",
     PROVIDER_MODE: config.PROVIDER_MODE ?? "mock",
+    PERSISTENCE_MODE: config.PERSISTENCE_MODE ?? "memory",
   };
 }
 

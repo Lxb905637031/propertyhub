@@ -8,7 +8,10 @@
     "start": "node dist/main.js",
     "lint": "prettier --check 'src/**/*.{ts,tsx}'",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "tsc -p tsconfig.build.json && node --test test/*.test.js"
+    "test": "tsc -p tsconfig.build.json && node --test test/*.test.js",
+    "db:generate": "prisma generate --schema prisma/schema.prisma",
+    "db:push": "prisma db push --schema prisma/schema.prisma",
+    "db:seed": "node prisma/seed.js"
   },
   "dependencies": {
     "@propertyhub/contracts": "workspace:*",

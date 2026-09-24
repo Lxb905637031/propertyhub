@@ -17,6 +17,12 @@ enum UserRole {
   MEMBER
 }
 
+enum InventoryReservationStatus {
+  RESERVED
+  CONSUMED
+  RELEASED
+}
+
 model Tenant {
   id        String   @id @default(cuid())
   name      String
@@ -39,4 +45,69 @@ model User {
 
   @@unique([tenantId, email])
   @@index([tenantId, role])
+}
+
+model Product {
+  id             String      @id
+  skuId          String      @unique
+  name           String
+  category       String
+  price          Int
+  pointsPrice    Int?
+  availableStock Int
+  active         Boolean     @default(true)
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+  orderItems     OrderItem[]
+
+  @@index([category, active])
+}
+
+model Order {
+  id          String      @id
+  orderNo     String      @unique
+  source      String
+  status      String
+  totalAmount Int
+  paymentId   String?     @unique
+  trackingNo  String?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  items       OrderItem[]
+}
+
+model OrderItem {
+  id          String  @id @default(cuid())
+  orderId     String
+  productId   String
+  skuId       String
+  productName String
+  quantity    Int
+  unitPrice   Int
+  subtotal    Int
+  order       Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product     Product @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  @@index([orderId])
+  @@index([skuId])
+}
+
+model InventoryReservation {
+  id        String                     @id @default(cuid())
+  orderId   String                     @unique
+  status    InventoryReservationStatus @default(RESERVED)
+  createdAt DateTime                   @default(now())
+  updatedAt DateTime                   @updatedAt
+  items     InventoryReservationItem[]
+}
+
+model InventoryReservationItem {
+  id            String               @id @default(cuid())
+  reservationId String
+  skuId         String
+  quantity      Int
+  reservation   InventoryReservation @relation(fields: [reservationId], references: [id], onDelete: Cascade)
+
+  @@index([reservationId])
+  @@index([skuId])
 }

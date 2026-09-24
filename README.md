@@ -37,6 +37,10 @@ cp .env.example .env
 pnpm install --frozen-lockfile
 docker compose up -d
 
+# 使用 PostgreSQL 持久化目录、订单和库存锁定记录
+pnpm --filter @propertyhub/commerce-api db:push
+pnpm --filter @propertyhub/commerce-api db:seed
+
 # 终端一：启动 API
 cp apps/commerce-api/.env.example apps/commerce-api/.env
 pnpm --filter @propertyhub/commerce-api dev
@@ -64,9 +68,13 @@ pnpm typecheck
 pnpm test
 pnpm build
 docker compose config
+
+# 连接测试数据库时运行 Prisma 持久化集成测试
+TEST_DATABASE_URL=postgresql://propertyhub:propertyhub@localhost:5432/propertyhub \
+  pnpm --filter @propertyhub/commerce-api test
 ```
 
-`apps/commerce-api/prisma/schema.prisma` 是当前租户和用户边界。加入业务表后，使用 Prisma migration 管理数据库结构；生产环境不使用 `db push` 或自动同步 schema。
+默认 `PERSISTENCE_MODE=memory`，不依赖数据库即可演示；设置 `PERSISTENCE_MODE=prisma` 后，商品、订单、订单明细和库存锁定会写入 PostgreSQL。生产环境应使用 Prisma migration 管理数据库结构，`db push` 只用于本地和一次性 Demo 初始化。
 
 ## 产品闭环
 
@@ -79,7 +87,7 @@ docker compose config
   -> 售后/退款 -> 报表、对账和审计
 ```
 
-当前已可运行的普通购买切片为：商品列表、库存预校验、创建订单、模拟支付、回调验签与幂等、模拟发货和确认收货。目录和订单数据暂存于 API 进程内，重启后恢复种子数据；下一步会接入 Prisma 事务持久化。
+当前已可运行的普通购买切片为：商品列表、库存预校验、创建订单、模拟支付、回调验签与幂等、模拟发货和确认收货。内存模式用于快速演示；Prisma 模式支持商品、订单、库存锁定的事务持久化，并可在 API 重启后继续处理待支付订单。
 
 主要 API：
 

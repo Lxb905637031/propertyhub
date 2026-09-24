@@ -18,6 +18,7 @@ import type {
   PaymentProvider,
 } from "../integrations/providers/provider.types";
 import { moveOrderStatus } from "./order-state";
+import { ORDER_REPOSITORY, type OrderRepository } from "./orders.repository";
 import type {
   CreateOrderDto,
   PayOrderDto,
@@ -27,18 +28,18 @@ import type {
 
 @Injectable()
 export class OrdersService {
-  private readonly orders = new Map<string, OrderDetails>();
   private readonly pendingOperations = new Map<string, Promise<void>>();
 
   constructor(
     private readonly catalogService: CatalogService,
     private readonly inventoryService: InventoryService,
+    @Inject(ORDER_REPOSITORY) private readonly repository: OrderRepository,
     @Inject(PAYMENT_PROVIDER) private readonly paymentProvider: PaymentProvider,
     @Inject(LOGISTICS_PROVIDER)
     private readonly logisticsProvider: LogisticsProvider,
   ) {}
 
-  create(input: CreateOrderDto): OrderDetails {
+  async create(input: CreateOrderDto): Promise<OrderDetails> {
     if (input.source !== "B2C_RETAIL") {
       throw new BadRequestException("当前演示仅支持普通购买");
     }
@@ -52,18 +53,17 @@ export class OrdersService {
         (quantities.get(item.skuId) ?? 0) + item.quantity,
       );
     }
-    const items: OrderItemSummary[] = [...quantities].map(
-      ([skuId, quantity]) => {
-        const product = this.catalogService.getBySkuId(skuId);
-        return {
-          skuId,
-          productName: product.name,
-          quantity,
-          unitPrice: product.price,
-          subtotal: product.price * quantity,
-        };
-      },
-    );
+    const items: OrderItemSummary[] = [];
+    for (const [skuId, quantity] of quantities) {
+      const product = await this.catalogService.getBySkuId(skuId);
+      items.push({
+        skuId,
+        productName: product.name,
+        quantity,
+        unitPrice: product.price,
+        subtotal: product.price * quantity,
+      });
+    }
     const id = randomUUID();
     const order: OrderDetails = {
       id,
@@ -75,17 +75,16 @@ export class OrdersService {
       items,
     };
     // 价格来自服务端商品快照；先整体锁库，再写入订单。
-    this.inventoryService.reserve(id, items);
-    this.orders.set(id, order);
-    return this.copy(order);
+    await this.inventoryService.reserve(id, items);
+    return this.repository.save(order);
   }
 
-  list(): OrderDetails[] {
-    return [...this.orders.values()].reverse().map((order) => this.copy(order));
+  list(): Promise<OrderDetails[]> {
+    return this.repository.list();
   }
 
-  getById(id: string): OrderDetails {
-    return this.copy(this.requireOrder(id));
+  getById(id: string): Promise<OrderDetails> {
+    return this.repository.getById(id);
   }
 
   pay(id: string, input: PayOrderDto = {}): Promise<OrderDetails> {
@@ -94,7 +93,7 @@ export class OrdersService {
         throw new ConflictException("当前订单不允许发起支付");
       }
       // 已创建的支付流水直接复用，网络重试不能切换成另一笔支付。
-      if (order.paymentId) return this.copy(order);
+      if (order.paymentId) return order;
       const result = await this.paymentProvider.createPayment({
         orderId: id,
         amount: order.totalAmount,
@@ -103,17 +102,15 @@ export class OrdersService {
       });
       order.paymentId = result.paymentId;
       if (result.status === "FAILED") {
-        this.inventoryService.release(id);
+        await this.inventoryService.release(id);
         order.status = moveOrderStatus(order.status, "CANCELLED");
       }
-      return this.copy(order);
+      return order;
     });
   }
 
   async paymentCallback(input: PaymentCallbackDto): Promise<OrderDetails> {
-    const order = [...this.orders.values()].find(
-      (candidate) => candidate.paymentId === input.paymentId,
-    );
+    const order = await this.repository.findByPaymentId(input.paymentId);
     if (!order) throw new NotFoundException("支付流水不存在");
 
     return this.runExclusive(order.id, async (current) => {
@@ -127,28 +124,29 @@ export class OrdersService {
       if (
         ["PAID", "PROCESSING", "SHIPPED", "COMPLETED"].includes(current.status)
       ) {
-        return this.copy(current);
+        return current;
       }
       if (current.status !== "PENDING_PAYMENT") {
         throw new ConflictException("订单已关闭，不能处理支付回调");
       }
       if (result.status === "SUCCEEDED") {
-        this.inventoryService.consume(current.id);
+        await this.inventoryService.consume(current.id);
         current.status = moveOrderStatus(current.status, "PAID");
       } else {
-        this.inventoryService.release(current.id);
+        await this.inventoryService.release(current.id);
         current.status = moveOrderStatus(current.status, "CANCELLED");
       }
-      return this.copy(current);
+      return current;
     });
   }
 
   ship(id: string, input: ShipOrderDto): Promise<OrderDetails> {
     return this.runExclusive(id, async (order) => {
       if (order.status === "SHIPPED" || order.status === "COMPLETED")
-        return this.copy(order);
-      if (order.status !== "PAID")
+        return order;
+      if (order.status !== "PAID") {
         throw new ConflictException("只有已支付订单可以发货");
+      }
       const shipment = await this.logisticsProvider.createShipment({
         orderId: id,
         ...input,
@@ -159,40 +157,33 @@ export class OrdersService {
       order.trackingNo = shipment.trackingNo;
       order.status = moveOrderStatus(order.status, "PROCESSING");
       order.status = moveOrderStatus(order.status, "SHIPPED");
-      return this.copy(order);
+      return order;
     });
   }
 
   complete(id: string): Promise<OrderDetails> {
     return this.runExclusive(id, async (order) => {
-      if (order.status === "COMPLETED") return this.copy(order);
+      if (order.status === "COMPLETED") return order;
       order.status = moveOrderStatus(order.status, "COMPLETED");
       // 已售出的商品不会因确认收货而重新成为可售库存。
-      return this.copy(order);
+      return order;
     });
   }
 
   cancel(id: string): Promise<OrderDetails> {
     return this.runExclusive(id, async (order) => {
-      if (order.status === "CANCELLED") return this.copy(order);
+      if (order.status === "CANCELLED") return order;
       const next = moveOrderStatus(order.status, "CANCELLED");
-      this.inventoryService.release(id);
+      await this.inventoryService.release(id);
       order.status = next;
-      return this.copy(order);
+      return order;
     });
-  }
-
-  private requireOrder(id: string): OrderDetails {
-    const order = this.orders.get(id);
-    if (!order) throw new NotFoundException(`订单 ${id} 不存在`);
-    return order;
   }
 
   private async runExclusive(
     id: string,
     operation: (order: OrderDetails) => Promise<OrderDetails>,
   ): Promise<OrderDetails> {
-    const order = this.requireOrder(id);
     const previous = this.pendingOperations.get(id) ?? Promise.resolve();
     let unlock!: () => void;
     const gate = new Promise<void>((resolve) => {
@@ -200,18 +191,16 @@ export class OrdersService {
     });
     this.pendingOperations.set(id, gate);
     // 把同一订单的异步操作串行化，防止 await Provider 时取消/重复回调交错。
-    // 这个锁只适用于本地单进程 Demo；持久化版本需要数据库事务与唯一约束。
+    // 这个锁只适用于本地单进程 Demo；多实例部署需要数据库事务与唯一约束。
     await previous;
     try {
-      return await operation(order);
+      const current = await this.repository.getById(id);
+      const updated = await operation(current);
+      return this.repository.save(updated);
     } finally {
       unlock();
       if (this.pendingOperations.get(id) === gate)
         this.pendingOperations.delete(id);
     }
-  }
-
-  private copy(order: OrderDetails): OrderDetails {
-    return { ...order, items: order.items.map((item) => ({ ...item })) };
   }
 }

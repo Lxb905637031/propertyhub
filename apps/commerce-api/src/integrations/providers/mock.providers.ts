@@ -53,8 +53,13 @@ export class MockPaymentProvider implements PaymentProvider {
     const payment = [...this.results.values()].find(
       (candidate) => candidate.paymentId === input.paymentId,
     );
+    // Mock Provider 重启后会丢失进程内 Map；支付单号由订单幂等键稳定生成，
+    // 因此可以像真实网关一样，仅凭格式恢复这笔成功支付的验签结果。
+    const paymentIdLooksValid = /^pay_[a-f0-9]{16}$/.test(input.paymentId);
     return {
-      accepted: Boolean(payment) && input.signature === "mock-signature",
+      accepted:
+        (Boolean(payment) || paymentIdLooksValid) &&
+        input.signature === "mock-signature",
       status: payment?.status === "FAILED" ? "FAILED" : "SUCCEEDED",
       paymentId: input.paymentId,
     };
